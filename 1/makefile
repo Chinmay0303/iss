@@ -30,4 +30,4 @@ $(PAR_EXE): $(PAR_SRC)
 
 # Rule to clean up generated files
 clean:
-	del /Q $(SEQ_EXE).exe $(PAR_EXE).exe *.o
+	rm -f $(SEQ_EXE) $(PAR_EXE) *.o *.log *.csv
