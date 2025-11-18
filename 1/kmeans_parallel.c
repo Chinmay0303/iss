@@ -75,13 +75,6 @@ int main(int argc, char *argv[]) {
     }
     free(used_indices);
 
-    // Set schedule type from command line argument
-    if (strcmp(schedule_type, "static") == 0) {
-        omp_set_schedule(omp_sched_static, 0);
-    } else if (strcmp(schedule_type, "dynamic") == 0) {
-        omp_set_schedule(omp_sched_dynamic, 0);
-    }
-
     double start_time = omp_get_wtime();
 
     int iterations = 0;
@@ -89,21 +82,46 @@ int main(int argc, char *argv[]) {
     do {
         changed_global = 0;
 
+        // --- MODIFICATION HERE ---
+        // Define a chunk size for dynamic scheduling to reduce overhead
+        int chunk_size = (num_points > 10000) ? 1000 : 100; 
+
         // 2. Assignment Step (Parallelized)
-        #pragma omp parallel for schedule(runtime) reduction(+:changed_global)
-        for (int i = 0; i < num_points; i++) {
-            double min_dist_sq = DBL_MAX;
-            int best_cluster = -1;
-            for (int j = 0; j < K; j++) {
-                double dist_sq = euclidean_distance_sq(points[i], centroids[j]);
-                if (dist_sq < min_dist_sq) {
-                    min_dist_sq = dist_sq;
-                    best_cluster = j;
+        // The 'schedule' clause is now inside the pragma.
+        // For this problem, static is best. Dynamic is included for the experiment.
+        if (strcmp(schedule_type, "static") == 0) {
+            #pragma omp parallel for schedule(static) reduction(+:changed_global)
+            for (int i = 0; i < num_points; i++) {
+                double min_dist_sq = DBL_MAX;
+                int best_cluster = -1;
+                for (int j = 0; j < K; j++) {
+                    double dist_sq = euclidean_distance_sq(points[i], centroids[j]);
+                    if (dist_sq < min_dist_sq) {
+                        min_dist_sq = dist_sq;
+                        best_cluster = j;
+                    }
+                }
+                if (cluster_assignments[i] != best_cluster) {
+                    cluster_assignments[i] = best_cluster;
+                    changed_global += 1;
                 }
             }
-            if (cluster_assignments[i] != best_cluster) {
-                cluster_assignments[i] = best_cluster;
-                changed_global += 1;
+        } else { // dynamic
+            #pragma omp parallel for schedule(dynamic, chunk_size) reduction(+:changed_global)
+            for (int i = 0; i < num_points; i++) {
+                double min_dist_sq = DBL_MAX;
+                int best_cluster = -1;
+                for (int j = 0; j < K; j++) {
+                    double dist_sq = euclidean_distance_sq(points[i], centroids[j]);
+                    if (dist_sq < min_dist_sq) {
+                        min_dist_sq = dist_sq;
+                        best_cluster = j;
+                    }
+                }
+                if (cluster_assignments[i] != best_cluster) {
+                    cluster_assignments[i] = best_cluster;
+                    changed_global += 1;
+                }
             }
         }
 
